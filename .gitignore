@@ -1,0 +1,23 @@
+# uv.lock is deliberately NOT ignored -- it is committed.
+
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+dist/
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+.env
+.env.*
+!.env.example
+
+.claude/settings.local.json
+
+.DS_Store
