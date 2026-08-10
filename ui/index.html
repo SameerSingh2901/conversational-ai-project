@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Voice Agent — Configs</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>Voice Agent</h1>
+    <span class="topbar-sub" id="health">connecting…</span>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-head">
+        <h2>Saved configs</h2>
+        <button type="button" id="new-config" class="btn btn-ghost">New</button>
+      </div>
+      <ul class="config-list" id="config-list"></ul>
+    </aside>
+
+    <section class="editor">
+      <div id="banner" class="banner" hidden></div>
+
+      <form id="config-form" autocomplete="off">
+        <div class="card">
+          <label class="field">
+            <span class="label">Config name</span>
+            <input type="text" id="field-name" name="name" placeholder="my-agent" />
+            <span class="hint">Saved as <code>name-YYYYMMDD-HHMMSS.json</code></span>
+            <span class="error" data-error-for="field-name"></span>
+          </label>
+        </div>
+
+        <div class="card" id="stage-stt"></div>
+        <div class="card" id="stage-llm"></div>
+        <div class="card" id="stage-tts"></div>
+        <div class="card" id="stage-vad"></div>
+
+        <div class="card">
+          <h3>Prompt</h3>
+          <label class="field">
+            <span class="label">Instructions <span class="req">required</span></span>
+            <textarea id="field-prompt-instructions" rows="7"
+              placeholder="You are a friendly voice assistant…"></textarea>
+            <span class="hint">Spoken aloud — keep replies short and free of markdown.</span>
+            <span class="error" data-error-for="field-prompt-instructions"></span>
+          </label>
+          <label class="field">
+            <span class="label">Greeting</span>
+            <input type="text" id="field-prompt-greeting"
+              placeholder="Hi, I'm your voice assistant." />
+            <span class="hint">First line the agent says. Optional.</span>
+            <span class="error" data-error-for="field-prompt-greeting"></span>
+          </label>
+        </div>
+
+        <div class="actions">
+          <button type="submit" class="btn btn-primary" id="save">Save config</button>
+          <span class="actions-note" id="creds-note"></span>
+        </div>
+      </form>
+    </section>
+
+    <aside class="callpane">
+      <div class="card call" id="call">
+        <div class="call-head">
+          <h3>Talk to the agent</h3>
+          <span class="call-status" id="call-status">idle</span>
+        </div>
+
+        <div class="call-controls">
+          <button type="button" class="btn btn-primary" id="run" disabled
+            title="Save a config first, or pick one from the list.">
+            Run
+          </button>
+          <button type="button" class="btn" id="mute" disabled>Mute</button>
+          <button type="button" class="btn btn-danger" id="hangup" disabled>
+            Hang up
+          </button>
+        </div>
+        <p class="call-note" id="call-note"></p>
+
+        <p class="transcript-empty" id="transcript-empty">
+          The transcript appears here once the call starts.
+        </p>
+        <ul class="transcript" id="transcript"></ul>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Vendored, not a CDN link: this page must work without internet access
+       to a third party, and the version is pinned by the file on disk. -->
+  <script src="/vendor/livekit-client.umd.min.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
