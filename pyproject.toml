@@ -4,7 +4,18 @@ version = "0.1.0"
 description = "Voice calling agent for spinny for sales calling."
 authors = []
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "dotenv>=0.9.9",
+    "fastapi>=0.141.1",
+    "livekit>=1.1.14",
+    "livekit-agents>=1.6.9",
+    "livekit-plugins-deepgram>=1.6.9",
+    "livekit-plugins-elevenlabs>=1.6.9",
+    "livekit-plugins-google>=1.6.9",
+    "livekit-plugins-openai>=1.6.9",
+    "livekit-plugins-silero>=1.6.9",
+    "uvicorn>=0.52.1",
+]
 
 [build-system]
 requires = ["uv_build>=0.12.0,<0.13.0"]
@@ -12,6 +23,8 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
+    "httpx2>=2.10.0",
     "mypy>=2.3.0",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
