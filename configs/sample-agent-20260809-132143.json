@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "id": "sample-agent-20260809-132143",
+  "name": "sample-agent",
+  "created_at": "2026-08-09T07:51:43Z",
+  "stt": {
+    "provider": "deepgram",
+    "model": "nova-3",
+    "language": "en"
+  },
+  "llm": {
+    "provider": "google",
+    "model": "gemini-3.5-flash-lite",
+    "temperature": 0.7
+  },
+  "tts": {
+    "provider": "elevenlabs",
+    "voice_id": "21m00Tcm4TlvDq8ikWAM",
+    "model": "eleven_flash_v2_5"
+  },
+  "vad": {
+    "provider": "silero"
+  },
+  "prompt": {
+    "instructions": "You are a friendly voice assistant. Introduce yourself when the conversation starts, then answer whatever the user asks. You are speaking out loud, so keep replies to one or two short sentences and avoid lists, markdown, or symbols.",
+    "greeting": "Hi, I'm your voice assistant. What would you like to talk about?"
+  },
+  "tools": []
+}

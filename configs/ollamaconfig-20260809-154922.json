@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "id": "ollamaconfig-20260809-154922",
+  "name": "ollamaconfig",
+  "created_at": "2026-08-09T10:19:22Z",
+  "stt": {
+    "provider": "deepgram",
+    "model": "nova-3",
+    "language": "en"
+  },
+  "llm": {
+    "provider": "ollama",
+    "model": "llama3.1",
+    "base_url": "http://localhost:11434/v1",
+    "temperature": 0.7
+  },
+  "tts": {
+    "provider": "elevenlabs",
+    "voice_id": "21m00Tcm4TlvDq8ikWAM",
+    "model": "eleven_flash_v2_5"
+  },
+  "vad": {
+    "provider": "silero"
+  },
+  "prompt": {
+    "instructions": "you are a happy and friendly voice assistant.",
+    "greeting": "Hello, what can I help you?"
+  },
+  "tools": []
+}
