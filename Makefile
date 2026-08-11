@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := check
 
-.PHONY: init install lock-check fmt fmt-check lint type-check test test-cov check lock ui worker agent agent-text configs
+.PHONY: init install lock-check fmt fmt-check lint type-check test test-cov check lock ui worker agent agent-text configs ingest
 
 # The two processes the UI needs. Run them in separate terminals:
 #   make ui       -> http://localhost:8000, the config editor and Run button
@@ -31,6 +31,12 @@ agent:
 # the quick way to iterate on a prompt without spending STT/TTS credits.
 agent-text:
 	VOICE_AGENT_CONFIG=$(CONFIG) lk agent console --text src/voice_agent/agent.py
+
+# Load knowledge/*.pdf|md|txt into Pinecone so the knowledge_base tool can find
+# it. Creates the index on first run. Safe to re-run — chunk ids are stable, so
+# a second run replaces records rather than duplicating them.
+ingest:
+	uv run python -m voice_agent.rag.ingest
 
 configs:
 	@ls -1 configs/*.json 2>/dev/null | xargs -n1 basename | sed 's/\.json$$//' || echo "(none saved yet)"
