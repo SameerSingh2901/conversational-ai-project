@@ -9,6 +9,9 @@ Changing providers or the prompt and starting another call needs **no restart** 
 config travels to the agent worker as LiveKit room metadata, and the voice pipeline is
 built fresh for every call.
 
+📖 **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — file-by-file walkthrough, data-flow
+traces, design invariants, and the bugs that shaped them.
+
 ```
 ┌──────────┬────────────────────────┬──────────────────┐
 │ Configs  │  Settings              │  Talk            │
@@ -83,6 +86,7 @@ flowchart LR
     L["LiveKit Cloud"]
     W["Worker<br/>agent.py"]
     P["Deepgram · Gemini<br/>ElevenLabs · Ollama"]
+    K[("Pinecone<br/>knowledge")]
 
     B -->|"config CRUD"| A
     A -->|"save / load"| D
@@ -91,12 +95,16 @@ flowchart LR
     L -->|"job assignment<br/>carries room metadata"| W
     W -->|"agent audio<br/>+ transcripts"| L
     W -->|"STT / LLM / TTS"| P
+    W -->|"tool call"| K
 ```
 
 The **API** is the control plane: it validates and stores configs and creates a LiveKit
 room with the chosen config stamped on it as metadata, but it never touches audio. The
 **worker** is the data plane: LiveKit hands it a job, it reads the config off the room,
 builds that call's pipeline, and does the listening and speaking.
+
+For the per-file detail — including both traces and the traps behind several odd-looking
+lines — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ### Layers
 
@@ -120,6 +128,8 @@ src/voice_agent/
 ui/                  plain HTML/CSS/JS, served by FastAPI — no build step
 configs/             saved agent profiles
 knowledge/           source documents for the knowledge_base tool
+docs/ARCHITECTURE.md file-by-file walkthrough
+scripts/             make_sample_pdf.py — regenerates the demo document
 ```
 
 ---
