@@ -50,6 +50,17 @@ make worker    # connects to LiveKit Cloud and waits for rooms
 Open <http://localhost:8000>, pick a config from the sidebar (or build one and save it),
 press **Run**, allow microphone access, and talk.
 
+**To give the agent a knowledge base**, put PDFs, markdown or text files in
+`knowledge/` and run:
+
+```bash
+make ingest    # chunks them and loads them into Pinecone
+```
+
+Then use a config whose `tools` list contains `"knowledge_base"` — the
+`spinny-support-*` config is set up that way. See
+[Tools and retrieval](#tools-and-retrieval).
+
 **Or skip the browser** and talk to a saved config straight from the terminal:
 
 ```bash
@@ -102,10 +113,13 @@ src/voice_agent/
 │   └── env.py         credentials; "supported" vs "available"
 ├── pipeline.py      provider registry: name -> builder(StageConfig)
 ├── tools/           LLM function tools, looked up by name from the config
+│   └── knowledge_base.py   retrieval over knowledge/, via Pinecone
+├── rag/             document loading, chunking, and the vector store
 ├── agent.py         the LiveKit worker; builds a pipeline per session
 └── api/             FastAPI: /api/providers, /api/configs, /api/sessions
 ui/                  plain HTML/CSS/JS, served by FastAPI — no build step
 configs/             saved agent profiles
+knowledge/           source documents for the knowledge_base tool
 ```
 
 ---
@@ -145,6 +159,7 @@ gets written onto a LiveKit room; credentials stay in `.env`.
 | LLM | Google Gemini (4 models), Ollama (any local model) |
 | Text to speech | ElevenLabs, Deepgram Aura (10 voices) |
 | Voice activity | Silero (local, no key) |
+| Retrieval | Pinecone, with server-side embeddings |
 
 A provider is *supported* when a builder exists for it, and *available* when its API key
 is present. The UI shows unavailable providers greyed out with the variable they need,
@@ -182,6 +197,70 @@ other fails the suite rather than a live call.
 
 ---
 
+## Tools and retrieval
+
+A config's `tools` list names the functions the LLM may call mid-conversation.
+Names are looked up in a registry, so a config opts in by name and the worker
+imports nothing use-case-specific:
+
+```json
+"tools": ["knowledge_base"]
+```
+
+### `knowledge_base`
+
+Retrieval over whatever is in `knowledge/`. Nothing about cars or any one company
+is in the tool's code — the domain lives in the documents and in the config's
+prompt, so pointing it at a different folder of PDFs makes it answer about
+something else.
+
+```
+knowledge/*.pdf ──► chunk by section ──► Pinecone (embedded server-side)
+                                                │
+caller asks a question ──► LLM decides to call ─┴─► top 3 passages ──► answer
+```
+
+- **Chunking** is one chunk per document section, with the heading kept inside the
+  chunk — it is a strong retrieval signal and it lets the agent name the section
+  it is quoting. Documents with no detectable headings fall back to overlapping
+  size-based chunks.
+- **Embeddings** are Pinecone's integrated inference, so text goes in and text
+  comes out. That keeps retrieval to one credential, with no second provider to
+  key and no embedding dimensions to keep in sync between ingest and query — a
+  classic way for a RAG system to break quietly.
+- **Chunk ids are stable** (document name + section), so re-running `make ingest`
+  replaces records instead of duplicating them.
+- **A relevance floor.** Vector search always returns its nearest neighbours, even
+  for "who won the world cup". Measured on the sample document, on-topic questions
+  score 0.20–0.51 and off-topic ones 0.03–0.09, so anything below **0.15** is
+  dropped and the tool tells the model to say it doesn't know. Reading out a
+  confidently wrong policy is worse in a voice call than on a page, because the
+  caller cannot skim and check.
+- **The lookup runs in a thread.** The Pinecone SDK is synchronous; calling it
+  directly would block the same event loop that is moving audio frames, and it is
+  heard as a stall mid-sentence.
+- **Failures degrade, they don't raise.** If Pinecone is unreachable the tool
+  returns a sentence telling the model to offer a follow-up. An exception here
+  would end the call.
+
+The sample document in `knowledge/` is illustrative demo data, clearly marked as
+such inside the PDF itself. Regenerate it with
+`uv run --with fpdf2 python scripts/make_sample_pdf.py`.
+
+### Adding a tool
+
+```python
+@register_tool("check_order_status")
+@function_tool
+async def check_order_status(context: RunContext[Any], order_id: str) -> str:
+    """Look up the status of a customer's order. Use when they ask where their car is."""
+    ...
+```
+
+Import it in `tools/__init__.py` so registration happens, then name it in a
+config's `tools` list. The docstring is what the LLM sees when deciding whether to
+call it, so write it for the model.
+
 ## Design decisions
 
 **A single provider catalogue.** `config/providers.py` is one table describing every
@@ -216,7 +295,7 @@ make test       # pytest
 make fmt        # apply formatting and autofixes
 ```
 
-95 tests. Two of them are structural rather than behavioural: one asserts every
+123 tests. Two of them are structural rather than behavioural: one asserts every
 catalogue provider has a builder (and the reverse), and one asserts LiveKit plugins are
 imported at module level — they must be, because plugin registration refuses to run off
 the main thread and builders execute in the job runner thread.
