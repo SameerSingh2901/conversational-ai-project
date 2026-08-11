@@ -389,15 +389,17 @@ sequenceDiagram
     Note over W: config_from_metadata()<br/>build_stt / llm / tts / vad<br/>resolve_tools(["knowledge_base"])
     W-->>B: greeting audio
     B->>W: "how long do I have to return the car?"
-    Note over W: VAD → STT → LLM
+    Note over W: VAD → STT → LLM #1<br/>decides a lookup is needed
     W->>K: knowledge_base(question)
-    K-->>W: top 3 passages
-    Note over W: LLM answers from passages → TTS
+    K-->>W: top 3 passages, score ≥ 0.15 (~1.2 s)
+    Note over W: LLM #2 answers from<br/>the passages → TTS
     W-->>B: audio + lk.transcription
 ```
 
-The API and the worker never speak to each other. The config crosses between them
-by being written onto the room.
+The API and the worker never speak to each other; the config crosses between them
+by being written onto the room. Note the **two** model calls in a tool-using turn —
+one to decide a lookup is needed, one to answer from what came back. That, plus the
+~1.2 s retrieval hop, is what grounding an answer costs.
 
 ---
 
