@@ -27,6 +27,11 @@
 
 * { box-sizing: border-box; }
 
+/* An author-level `display` beats the UA stylesheet's [hidden] rule, so any
+   element given `display: flex/grid` silently ignores the hidden attribute.
+   This makes `hidden` mean hidden, everywhere. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   background: var(--bg);
@@ -264,47 +269,73 @@ input:focus, select:focus, textarea:focus {
 .transcript li.interim .what { opacity: .55; font-style: italic; }
 
 /* --- the standalone call-log page --- */
-.log-page { max-width: 900px; margin: 0 auto; padding: 22px; }
-.log-status { font-size: 14px; color: var(--muted); }
-.log-status.error { color: var(--danger); }
-.log-body { display: grid; gap: 14px; }
+/* Reads like a log: monospace, aligned rows, full width, nothing sideways. */
+.log-body-page { background: var(--bg); }
 
-.log-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 12px 18px;
-  margin: 0;
+.log-page {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 28px 24px 80px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
 }
-.log-grid div { min-width: 0; }
-.log-grid dt {
-  font-family: ui-monospace, Menlo, monospace;
-  font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
-  color: var(--muted); margin-bottom: 3px;
-}
-.log-grid dd {
-  margin: 0; font-size: 15px; font-weight: 600;
-  font-variant-numeric: tabular-nums;
+
+.log-head { border-bottom: 1px solid var(--line); padding-bottom: 14px; margin-bottom: 6px; }
+.log-head h1 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
-.log-page pre {
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 14px;
-  overflow-x: auto;
-  font-size: 12.5px;
-  line-height: 1.55;
-  margin: 0;
+.log-sub { margin: 0; color: var(--muted); font-size: 12.5px; }
+.log-sub.bad { color: var(--danger); }
+
+.log-status { font-size: 13px; color: var(--muted); font-family: ui-monospace, Menlo, monospace; }
+.log-status.bad { color: var(--danger); }
+
+.log-section { margin-top: 26px; }
+.log-section h2 {
+  margin: 0 0 10px;
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 600;
+}
+.log-note { margin: 10px 0 0; color: var(--muted); font-size: 12px; }
+
+/* label column is fixed so values line up; it collapses on narrow screens */
+.log-rows { display: grid; gap: 2px; }
+.log-row {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 12px;
+  padding: 3px 0;
+  border-bottom: 1px dotted var(--line);
+}
+.log-key { color: var(--muted); }
+.log-val { overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.log-val.good { color: var(--ok); }
+.log-val.bad { color: var(--danger); }
+
+@media (max-width: 640px) {
+  .log-row { grid-template-columns: 1fr; gap: 0; }
+  .log-key { font-size: 11px; }
 }
 
-.tools-warning {
-  margin: 0 0 12px;
-  padding: 9px 12px;
-  border-radius: 6px;
-  font-size: 13px;
-  color: var(--danger);
-  background: var(--danger-bg);
-  border: 1px solid var(--danger);
+/* The whole point: wrap, never scroll sideways. */
+.log-json {
+  margin: 10px 0 0;
+  padding: 14px 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-x: hidden;
 }
 
 /* --- banner --- */

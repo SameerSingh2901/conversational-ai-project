@@ -6,49 +6,45 @@
   <title>Call log — Voice Agent</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
-<body>
-  <header class="topbar">
-    <h1>Call log</h1>
-    <span class="topbar-sub" id="call-id"></span>
-  </header>
-
+<body class="log-body-page">
   <main class="log-page">
     <p class="log-status" id="log-status">Loading…</p>
 
-    <section class="log-body" id="log-body" hidden>
-      <div class="card">
-        <h3>Overview</h3>
-        <dl class="log-grid" id="overview"></dl>
-      </div>
+    <div id="log-body" hidden>
+      <header class="log-head">
+        <h1 id="log-title">call</h1>
+        <p class="log-sub" id="log-sub"></p>
+      </header>
 
-      <div class="card">
-        <h3>Usage</h3>
-        <dl class="log-grid" id="usage"></dl>
-        <p class="hint">
+      <p class="tools-warning" id="tools-warning" hidden></p>
+
+      <section class="log-section">
+        <h2>call</h2>
+        <div class="log-rows" id="rows-call"></div>
+      </section>
+
+      <section class="log-section">
+        <h2>usage</h2>
+        <div class="log-rows" id="rows-usage"></div>
+        <p class="log-note">
           Tokens, characters and audio seconds are what the providers invoice for.
         </p>
-      </div>
+      </section>
 
-      <div class="card" id="tools-card" hidden>
-        <h3>Tools</h3>
-        <p class="tools-warning" id="tools-warning" hidden></p>
-        <div class="tablewrap">
-          <table id="tools-table">
-            <thead><tr><th>Tool</th><th>Calls</th><th>Errors</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </div>
+      <section class="log-section" id="section-tools" hidden>
+        <h2>tools</h2>
+        <div class="log-rows" id="rows-tools"></div>
+      </section>
 
-      <div class="card">
-        <h3>Config used</h3>
-        <p class="hint">
-          A snapshot taken when the call started. The saved config may have been
-          edited since; this is what actually ran.
+      <section class="log-section">
+        <h2>config snapshot</h2>
+        <p class="log-note">
+          Taken when the call started. The saved config may have been edited since;
+          this is what actually ran.
         </p>
-        <pre id="config-json"></pre>
-      </div>
-    </section>
+        <pre class="log-json" id="config-json"></pre>
+      </section>
+    </div>
   </main>
 
   <script src="/logs.js"></script>
