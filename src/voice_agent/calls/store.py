@@ -47,9 +47,6 @@ class CallStore:
             raise CallNotFoundError(f"no call record for {call_id!r} in {self.root}")
         return record_from_dict(json.loads(path.read_text(encoding="utf-8")))
 
-    def exists(self, call_id: str) -> bool:
-        return self._path(call_id).is_file()
-
     def list(self) -> list[CallRecord]:
         """Every readable record, newest first. Unreadable files are skipped and
         logged rather than failing the listing."""

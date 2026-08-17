@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -28,21 +29,13 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_UI_DIR = REPO_ROOT / "ui"
 
 
-def _load_dotenv() -> None:
-    """Best-effort .env load so credential gating reflects the developer's keys."""
-    try:
-        from dotenv import load_dotenv
-    except ImportError:  # pragma: no cover - dotenv is a declared dependency
-        return
-    load_dotenv()
-
-
 def create_app(
     config_dir: Path | str | None = None,
     ui_dir: Path | str | None = None,
     call_log_dir: Path | str | None = None,
 ) -> FastAPI:
-    _load_dotenv()
+    # So credential gating reflects the developer's keys.
+    load_dotenv()
 
     app = FastAPI(title="Voice Agent", version="0.1.0")
     app.state.store = ConfigStore(

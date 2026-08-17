@@ -73,9 +73,6 @@ class KnowledgeBase:
     def _index(self) -> Any:
         return self._pinecone().Index(self.index_name)
 
-    def exists(self) -> bool:
-        return bool(self._pinecone().has_index(self.index_name))
-
     def ensure_index(self) -> bool:
         """Create the index if it is missing. Returns True when it created one."""
         pc = self._pinecone()

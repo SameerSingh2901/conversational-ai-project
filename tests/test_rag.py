@@ -135,7 +135,7 @@ def test_hits_of_an_empty_response():
 def test_missing_api_key_is_a_clear_error(monkeypatch):
     monkeypatch.delenv("PINECONE_API_KEY", raising=False)
     with pytest.raises(KnowledgeBaseError, match="PINECONE_API_KEY"):
-        KnowledgeBase().exists()
+        KnowledgeBase().ensure_index()
 
 
 def test_index_and_namespace_come_from_env(monkeypatch):

@@ -126,10 +126,6 @@ class CallRecorder:
 
     # --- result -----------------------------------------------------------
 
-    def note_error(self, error: str) -> None:
-        """For failures the session never sees — a config that would not build."""
-        self._error = error
-
     def finish(self, shutdown_reason: str | None = None) -> CallRecord:
         self._ended = self._ended or _now()
         duration = (self._ended - self._started).total_seconds()

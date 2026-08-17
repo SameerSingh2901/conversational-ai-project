@@ -91,13 +91,7 @@ def _coerce(value: object, expected: type) -> Any:
     return value
 
 
-def _require_str(
-    raw: Mapping[str, Any],
-    key: str,
-    errors: list[FieldError],
-    *,
-    allow_empty: bool = False,
-) -> str:
+def _require_str(raw: Mapping[str, Any], key: str, errors: list[FieldError]) -> str:
     value = raw.get(key)
     if value is None:
         errors.append(FieldError((key,), "field required"))
@@ -105,7 +99,7 @@ def _require_str(
     if not isinstance(value, str):
         errors.append(FieldError((key,), f"expected str, got {type(value).__name__}"))
         return ""
-    if not allow_empty and not value.strip():
+    if not value.strip():
         errors.append(FieldError((key,), "must not be empty"))
         return ""
     return value

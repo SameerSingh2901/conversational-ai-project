@@ -278,13 +278,6 @@ def test_missing_record_raises(tmp_path: Path):
         CallStore(tmp_path).load("nope")
 
 
-def test_exists_reports_before_and_after(tmp_path: Path, recorder):
-    store = CallStore(tmp_path)
-    assert store.exists(CALL_ID) is False
-    store.save(recorder.finish())
-    assert store.exists(CALL_ID) is True
-
-
 def test_list_is_newest_first_and_skips_unreadable(tmp_path: Path, config):
     store = CallStore(tmp_path)
     for call_id, started in [
