@@ -153,9 +153,9 @@ LangGraph work starts.
 is driven through it via `LLM.with_ollama()`, which talks to Ollama's
 OpenAI-compatible endpoint.
 
-## Where we are now (2026-08-11)
+## Where we are now (2026-08-17)
 
-Steps 1-4 are in, plus retrieval tooling (step 4b below). Nothing from the original
+Steps 1-5a are in, including retrieval tooling and call logging. Nothing from the original
 repo's code survives except in spirit — `pipeline.py` and `agent.py` were rewritten
 around the config.
 
@@ -171,21 +171,34 @@ src/voice_agent/
 ├── agent.py         worker; config from room metadata, env var as fallback
 ├── tools/           registry + knowledge_base, the first real tool
 ├── rag/             documents, chunking, Pinecone store, ingest
+├── calls/           call records: models, recorder, store, redaction seam
 ├── db/                                          still empty
 └── app/…                                        stale empty dirs, safe to delete
-ui/                  index.html, styles.css, app.js, vendor/livekit-client
+ui/                  index.html, app.js, logs.html, logs.js, styles.css, vendor/
 configs/             saved agent profiles, incl. spinny-support (uses the tool)
+call_logs/           one record per call — gitignored, runtime data
 knowledge/           source documents for the knowledge_base tool
 docs/ARCHITECTURE.md file-by-file walkthrough, traces, invariants, traps
 scripts/             make_sample_pdf.py — regenerates the demo document
 ```
 
-~3,000 lines of source, 50 tracked files, **123 tests**, `make check` green.
+~3,800 lines of source, 61 tracked files, **150 tests**, `make check` green.
 
-**Everything but the call log runs.** What is left:
+**All four done-criteria are met.** Call overviews are recorded and viewable; what
+is left is depth rather than capability:
 
-- No call logging or latency capture yet (step 5) — the last of the four
-  done-criteria still outstanding.
+- **Per-turn latency** is not captured yet. Overviews record totals; the breakdown
+  (end-of-utterance delay, LLM time-to-first-token, TTS time-to-first-byte,
+  correlated by `speech_id`) is step 5b.
+- **Transcripts are not persisted.** They render live but nothing is stored, which
+  is why `calls/redaction.py` is still a no-op.
+- **`metrics_collected` is deprecated.** LiveKit now points at
+  `session_usage_updated` for totals and `ChatMessage.metrics` for per-turn latency.
+  Ours still works and records correct numbers; migrating is deliberately paired
+  with 5b so the change can be watched on a real call.
+- **`CallStore` does not scale.** One JSON file per call, and `list()` reads every
+  one. Fine for development, wrong past a few thousand calls — see the scale
+  section in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - Retrieval costs ~1.2 s per lookup from India to Pinecone's `us-east-1`, on top
   of LLM and TTS time. Unaddressed.
 - `tools` is a list of names; per-tool options (index, `top_k`, threshold) are
@@ -500,21 +513,67 @@ disconnects, so the record does not exist when the UI first asks. It polls for u
 20 s rather than guessing at a fixed delay — which is why `GET /api/calls/{id}`
 returning 404 has to mean "not yet".
 
+### Fixed while testing 5a
+
+**The record landed 24 s after hang-up.** `add_shutdown_callback` guarantees the
+write happens but not *when* — LiveKit uploads its session report first. In a real
+call the session closed at 11:47:21 and the job did not shut down until 11:47:45,
+by which point the browser had stopped polling and shown "No log was written". Now
+written on `session.on("close")`, with the shutdown callback kept as a fallback and
+a guard so it writes exactly once.
+
+**Calls were silent.** ElevenLabs returns HTTP 402 for *shared library* voices on
+free accounts, and LiveKit reports that as `no audio frames were pushed for text` —
+a billing error wearing a synthesis error's clothes. The default voice was Rachel,
+a library voice. Now Sarah (`EXAVITQu4vr4xnSDxMaL`), which is in the account's own
+library; verified through `build_tts` at 12 frames / 1.57 s of audio. Voice ids are
+per-account — `GET /v2/voices` lists yours.
+
+**"Generating logs…" never stopped.** `.artifacts-pending` sets `display: flex`,
+and an author-level display beats the UA stylesheet's `[hidden] { display: none }`,
+so `element.hidden = true` did nothing. Fixed globally with
+`[hidden] { display: none !important }`.
+
+**The log page was a dashboard.** Cards, big stat numbers, a 900 px column and JSON
+that scrolled sideways. Rebuilt as a log: monospace, aligned label/value rows, full
+width, wrapping JSON, no horizontal scroll anywhere.
+
+**A deleted config left an open page broken.** `POST /api/sessions` returned 404
+while the sidebar kept offering the config. The page now clears the stale
+selection, says so, and reloads the list.
+
+**The model called a tool that was not enabled.** Running a config with
+`"tools": []` while the prompt instructed a lookup produced
+`unknown AI function knowledge_base` — and a confident, ungrounded answer. The
+record captured it as `calls 1, errors 1`; the log page now says in words that the
+answer was not grounded.
+
 ## Step 5b — Per-turn latency and transcripts
 
-- [ ] `logging.py`: structured JSON logs to stdout, configured once per process
-- [ ] Call record: `call_id`, full config snapshot, start/end, per-turn transcript
-      with timestamps and speaker
-- [ ] Latency from LiveKit's `MetricsCollectedEvent`, captured **per turn**:
-      end-of-utterance delay, LLM time-to-first-token, TTS time-to-first-byte, and
-      total user-stopped-talking → agent-started-talking
-- [ ] Persist to `call_logs/<call_id>.json` using the same store pattern as configs
-- [ ] `GET /api/calls`, `GET /api/calls/{id}`
-- [ ] UI: Calls page — list of past calls, detail view with transcript and a
-      per-turn latency table
+Everything 5a left out. The overview answers "what did this call cost"; this
+answers "where did the time go, and what was actually said".
 
-**Done when:** after a call, open the Calls page and see the transcript, the exact
-config that ran, and where every millisecond went on each turn.
+- [ ] Migrate off `metrics_collected` — LiveKit deprecated it in favour of
+      `session_usage_updated` for totals and `ChatMessage.metrics` for per-turn
+      latency. Pair the migration with this step so it can be watched on a real
+      call rather than asserted against a guessed event shape
+- [ ] Correlate metrics into turns by `speech_id`, which `EOUMetrics`, `LLMMetrics`
+      and `TTSMetrics` all carry. Per turn: end-of-utterance delay, transcription
+      delay, LLM time-to-first-token, TTS time-to-first-byte, and the derived
+      caller-stopped-talking → agent-started-speaking total
+- [ ] `llm_calls` as a **list** per turn — a tool-using turn makes two model calls,
+      and modelling it as one understates both cost and latency
+- [ ] Persist the transcript from `ConversationItemAddedEvent`, and route every
+      string through `calls/redaction.py` — this is the increment where that seam
+      stops being decorative
+- [ ] Tool detail: duration and, for `knowledge_base`, the passages and scores
+      returned. `FunctionToolsExecutedEvent` has neither, so the tool reports it
+      itself via `RunContext.userdata`
+- [ ] Log page: a per-turn latency table and the transcript alongside it
+- [ ] A calls list in the UI, so you can compare turns across config revisions
+
+**Done when:** after a call you can see which provider was slow on which turn, and
+read what was said next to it.
 
 ## Step 6 — One-command startup and polish
 

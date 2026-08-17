@@ -146,7 +146,7 @@ scripts/             make_sample_pdf.py — regenerates the demo document
   "created_at": "2026-08-09T07:51:43Z",
   "stt": { "provider": "deepgram",   "model": "nova-3", "language": "en" },
   "llm": { "provider": "google",     "model": "gemini-3.5-flash-lite", "temperature": 0.7 },
-  "tts": { "provider": "elevenlabs", "voice_id": "21m00Tcm4TlvDq8ikWAM",
+  "tts": { "provider": "elevenlabs", "voice_id": "EXAVITQu4vr4xnSDxMaL",
            "model": "eleven_flash_v2_5" },
   "vad": { "provider": "silero" },
   "prompt": {
@@ -176,6 +176,12 @@ gets written onto a LiveKit room; credentials stay in `.env`.
 A provider is *supported* when a builder exists for it, and *available* when its API key
 is present. The UI shows unavailable providers greyed out with the variable they need,
 rather than hiding them.
+
+> **ElevenLabs voice ids are per-account.** Free plans cannot use *shared library*
+> voices through the API — ElevenLabs answers 402, and LiveKit reports that as
+> "no audio frames were pushed", so the call simply goes silent. The default here is
+> a voice that free accounts have. If it is not in yours, list yours with
+> `curl -H "xi-api-key: $ELEVEN_API_KEY" https://api.elevenlabs.io/v2/voices`.
 
 ---
 
@@ -296,7 +302,14 @@ from `POST /api/sessions`, so no second identifier has to be threaded through.
   once transcripts are stored. It is a no-op today and nothing calls it yet.
 
 Per-turn latency — end-of-utterance delay, LLM time-to-first-token, TTS
-time-to-first-byte, correlated by `speech_id` — is the next increment.
+time-to-first-byte, correlated by `speech_id` — is the next increment, along with
+stored transcripts and tool detail.
+
+**This does not scale as-is.** One JSON file per call, and `list()` reads every one
+of them, so the calls list is O(all calls ever). Fine for development, wrong past a
+few thousand. `CallStore` is `save / load / list / exists` precisely so the swap to
+an indexed store is one file — see the scale section in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Design decisions
 
@@ -332,9 +345,9 @@ make test       # pytest
 make fmt        # apply formatting and autofixes
 ```
 
-123 tests. Two of them are structural rather than behavioural: one asserts every
-catalogue provider has a builder (and the reverse), and one asserts LiveKit plugins are
-imported at module level — they must be, because plugin registration refuses to run off
+150 tests. Three of them are structural rather than behavioural: one asserts every
+catalogue provider has a builder (and the reverse), one asserts LiveKit plugins are
+imported at module level, and one pins both spellings of Pinecone's score field — they must be, because plugin registration refuses to run off
 the main thread and builders execute in the job runner thread.
 
 ---

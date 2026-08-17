@@ -4,7 +4,7 @@ A file-by-file walkthrough: what each part does, how a click becomes a voice, an
 why the design is shaped this way. The [README](../README.md) is the front door —
 this is the deep dive.
 
-**Scale:** ~3,000 lines of source across 50 tracked files, 123 tests.
+**Scale:** ~3,800 lines of source across 61 tracked files, 150 tests.
 
 ---
 
@@ -98,7 +98,7 @@ lives in the JavaScript; the browser just reads these facts over HTTP.
   "created_at": "2026-08-11T03:04:27Z",
   "stt": { "provider": "deepgram", "model": "nova-3", "language": "en" },
   "llm": { "provider": "google", "model": "gemini-3.5-flash-lite", "temperature": 0.3 },
-  "tts": { "provider": "elevenlabs", "voice_id": "21m00Tcm4TlvDq8ikWAM",
+  "tts": { "provider": "elevenlabs", "voice_id": "EXAVITQu4vr4xnSDxMaL",
            "model": "eleven_flash_v2_5" },
   "vad": { "provider": "silero" },
   "prompt": { "instructions": "...", "greeting": "..." },
@@ -124,8 +124,8 @@ Dependencies point one way. This is the actual architecture — it is why the UI
 could be added without touching the agent, and the tool without touching the API.
 
 ```
-config/  ←  pipeline.py, tools/, rag/  ←  agent.py
-   ↖________________________________________  api/  ←  ui/
+config/  ←  pipeline.py, tools/, rag/, calls/  ←  agent.py
+   ↖_________________________________________________  api/  ←  ui/
 ```
 
 ### Layer 1 — `config/` (the core, ~750 lines)
@@ -248,6 +248,36 @@ than as an error.
 Chunk ids are `<document>--<index>--<section>`, so re-running ingest **replaces**
 records rather than duplicating them.
 
+#### `calls/` — what happened, and what it cost
+
+| File | Lines | What it does |
+|---|---:|---|
+| `models.py` | 190 | `CallRecord`, `CallTotals`, `TokenUsage`, `ToolUse`, and a forgiving `record_from_dict()` |
+| `recorder.py` | 171 | Subscribes to session events, accumulates in memory, returns a record on `finish()` |
+| `store.py` | 78 | `call_logs/<room-name>.json`, mirroring `ConfigStore` |
+| `redaction.py` | 45 | The single seam free text will pass through. No-op; nothing calls it yet |
+
+LiveKit publishes almost everything needed: `LLMMetrics` carries token counts and
+TTFT, `TTSMetrics` carries characters and TTFB, `FunctionToolsExecutedEvent`
+carries tool calls and their outputs. The recorder mostly counts.
+
+Three decisions shape it:
+
+- **The room name is the call id.** Unique per call, and the browser already holds
+  it from `POST /api/sessions` — no second identifier to thread through.
+- **The config is snapshotted, not referenced.** The saved config may be edited or
+  deleted afterwards; a record pointing at it by id would silently start
+  describing something else.
+- **Every handler is defensive.** A malformed metric loses a number. It must never
+  end a live call.
+
+> **Write on session close, not job shutdown.** `ctx.add_shutdown_callback` fires
+> on *job* shutdown, and LiveKit uploads its session report to the cloud first — in
+> a real call the session closed at 11:47:21 and the job did not shut down until
+> 11:47:45. The browser had given up polling long before. `_RecordWriter` now
+> writes on `session.on("close")` and keeps the shutdown callback as a fallback for
+> sessions that never close cleanly, writing exactly once either way.
+
 ### Layer 3 — `agent.py` (172 lines), the worker
 
 `load_dotenv()` runs before any other import, because provider plugins read their
@@ -319,6 +349,8 @@ Those handlers are why no route writes error-formatting code.
 | `POST /api/configs` | Validate then save. **201** with the new id. |
 | `POST /api/configs/validate` | Validate without saving. |
 | `POST /api/sessions` | Create a room carrying the config, mint a scoped token. |
+| `GET /api/calls` | Call summaries, newest first. |
+| `GET /api/calls/{id}` | One full record. 404 means "not written yet" — the browser polls this after hang-up. |
 
 The line the whole architecture rests on:
 
@@ -417,7 +449,7 @@ one to decide a lookup is needed, one to answer from what came back. That, plus 
 
 ### Structural tests
 
-Three of the 123 tests are structural rather than behavioural — they encode
+Three of the 150 tests are structural rather than behavioural — they encode
 constraints you cannot see by reading the code they protect:
 
 - `test_every_catalogue_provider_has_a_builder` (and the reverse) — the only
@@ -429,6 +461,7 @@ constraints you cannot see by reading the code they protect:
 | File | Lines | Covers |
 |---|---:|---|
 | `tests/test_config.py` | 322 | Validation, defaults, blanks, the store, credential gating |
+| `tests/test_calls.py` | 300 | Recorder accumulation, write-once-on-close, the store, the read API |
 | `tests/test_sessions.py` | 253 | Sessions route with LiveKit stubbed, token grants, metadata resolution |
 | `tests/test_rag.py` | 250 | Chunking, response parsing, the tool's thresholds and failure modes |
 | `tests/test_api.py` | 209 | Every endpoint, error shapes, static serving |
@@ -465,6 +498,21 @@ silent-zero bug that looks like a retrieval failure but is a parsing failure.
 **Registration happens at import.** A tool that is never imported is never
 registered, and the config fails with "unknown tool" even though the code exists.
 
+**ElevenLabs library voices need a paid plan.** Calls went silent with
+`no audio frames were pushed for text`. The key was valid with 9k characters left;
+the default voice was a *shared library* voice, and free accounts get HTTP 402 for
+those — a billing error surfaced as a synthesis failure. Voice ids are per-account:
+`GET /v2/voices` shows what yours actually has.
+
+**The write fired 24 seconds too late.** `add_shutdown_callback` guarantees it
+runs, but LiveKit uploads its session report first, so the record landed well after
+the browser stopped polling. Guaranteed and prompt are different properties.
+
+**`display: flex` beats the `hidden` attribute.** The "Generating logs…" spinner
+never disappeared, because an author-level `display` overrides the UA stylesheet's
+`[hidden] { display: none }`. `element.hidden = true` silently did nothing. There
+is now a global `[hidden] { display: none !important }`.
+
 **Google lists models it will not serve.** `/v1beta/models` still advertises
 `gemini-2.5-flash-lite`, but calling it returns 404 "no longer available to new
 users". The list endpoint is not a source of truth; only a real call is.
@@ -475,7 +523,48 @@ and ElevenLabs hides its 401 behind "no audio frames were pushed".
 
 ---
 
-## 9. Change map
+## 9. Scale: where this stops working
+
+`CallStore` writes one JSON file per call and `list()` reads every one of them.
+That is right for development and wrong for production, and it is worth being
+precise about which part breaks first.
+
+At 100,000 calls a day:
+
+| | |
+|---|---|
+| Files | 100k a day, ~3M a month, in one directory |
+| Size | ~2.5 KB each now, 20–50 KB with transcripts — around 1 TB/year |
+| `list()` | reads and parses **every record ever written** to build one page |
+
+Storage is not the problem — it is a rounding error next to the provider bill for
+that much audio. **The list query is.** `list()` is O(all calls), so the page takes
+seconds at ten thousand records and never returns at a million. Most filesystems
+also degrade badly past ~10k files in a directory. On top of that: no index, so
+filtering by config or date means reading everything; no pagination; worker and API
+must share a disk; and no retention, so personal data accumulates indefinitely.
+
+What it becomes:
+
+- **Postgres for the index** — one row per call with id, config id, start time,
+  duration, outcome, token totals and provider names, indexed on start time and
+  config id. Every list and filter hits this and never opens a payload.
+- **Object storage for the payload** — transcript, per-turn metrics and tool
+  detail, keyed by call id, fetched only when someone opens one log.
+- **ClickHouse or similar for analytics** — p95 latency by provider over a month is
+  not something you compute by scanning JSON.
+- **A queue between the worker and the database** — writing straight to Postgres on
+  every call end makes database availability into call availability. Publish, batch,
+  consume.
+- **Retention** — transcripts are personal data. Hot for 30–90 days, then archive or
+  delete, with a deletion path on request.
+
+What changes in this codebase when that happens: `models.py` and `recorder.py` are
+untouched, `store.py` is rewritten, the routes gain `?limit=` / `?before=` /
+`?config_id=`, and the UI gains pagination. `CallStore` has been
+`save / load / list / exists` since its first commit for exactly this reason.
+
+## 10. Change map
 
 | You want to… | Edit |
 |---|---|
@@ -486,13 +575,15 @@ and ElevenLabs hides its 401 behind "no audio frames were pushed".
 | Add a config field | `AgentConfig` in `schema.py`, its parsing, and wherever it is consumed. |
 | Add an HTTP endpoint | A module in `api/routes/`, then `include_router` in `app.py`. |
 | Move configs to Postgres | The four method bodies in `ConfigStore`. Callers untouched. |
+| Move call logs to a database | The four method bodies in `CallStore`, plus pagination on the routes. |
+| Record more about a call | A field on `CallRecord`, and a handler in `CallRecorder`. |
 | Swap the vector store | `rag/store.py`. `documents.py` and the tool are unaffected. |
 | Change what the agent says first | The `greeting` field — in the UI, not in code. |
 | Adopt pydantic | The body of `schema.py`. Keep `ConfigValidationError.errors` as `(loc, msg)` pairs and nothing else changes. |
 
 ---
 
-## 10. Not built yet
+## 11. Not built yet
 
 - **Per-turn latency.** Call *overviews* are now recorded (`calls/`) — timing,
   config snapshot, token and character usage, tool tallies. What is still missing is
