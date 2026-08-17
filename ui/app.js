@@ -482,6 +482,14 @@ async function startCall() {
   if (!ok) {
     setCallStatus("failed", "error");
     $("call-note").textContent = body?.detail ?? `server returned ${status}`;
+    // The config was deleted while this page had it selected. Drop the stale
+    // selection and reload the list so the sidebar stops offering it.
+    if (status === 404) {
+      state.selectedId = null;
+      $("call-note").textContent =
+        "That config no longer exists — it was deleted. Pick another from the list.";
+      await refreshList();
+    }
     refreshRunButton();
     return;
   }

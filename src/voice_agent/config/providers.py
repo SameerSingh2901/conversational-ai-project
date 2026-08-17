@@ -17,9 +17,16 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-# Stock ElevenLabs voice ("Rachel") — every account has it, so it is a safe default
-# for a config that does not name one.
-DEFAULT_ELEVENLABS_VOICE = "21m00Tcm4TlvDq8ikWAM"
+# "Sarah" — one of the voices ElevenLabs puts in an account's own library.
+#
+# The previous default was "Rachel" (21m00Tcm4TlvDq8ikWAM), which is a *shared
+# library* voice. Free accounts get HTTP 402 for those: "Free users cannot use
+# library voices via the API." LiveKit reports that as "no audio frames were
+# pushed", so the call simply goes silent with no mention of billing.
+#
+# Voice ids are per-account. If this one is not in yours, GET /v2/voices from the
+# ElevenLabs API and paste an id from the response.
+DEFAULT_ELEVENLABS_VOICE = "EXAVITQu4vr4xnSDxMaL"
 
 # Verified working against a current Google AI Studio key (2026-08-09) by calling
 # generateContent on each. `gemini-2.5-flash-lite` is deliberately absent: Google
@@ -161,7 +168,10 @@ TTS_PROVIDERS: dict[str, ProviderSpec] = {
             "voice_id": FieldSpec(
                 type=str,
                 default=DEFAULT_ELEVENLABS_VOICE,
-                description="ElevenLabs voice id. Blank uses the stock Rachel voice.",
+                description=(
+                    "Voice id from your own ElevenLabs library. Shared library "
+                    "voices need a paid plan. Blank uses a built-in voice."
+                ),
             ),
             "model": FieldSpec(
                 type=str,

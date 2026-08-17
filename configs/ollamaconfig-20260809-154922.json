@@ -16,7 +16,7 @@
   },
   "tts": {
     "provider": "elevenlabs",
-    "voice_id": "21m00Tcm4TlvDq8ikWAM",
+    "voice_id": "EXAVITQu4vr4xnSDxMaL",
     "model": "eleven_flash_v2_5"
   },
   "vad": {

@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from voice_agent.api.app import create_app
+from voice_agent.config.providers import DEFAULT_ELEVENLABS_VOICE
 
 SAMPLE = Path("configs/sample-agent-20260809-132143.json")
 
@@ -52,7 +53,7 @@ def test_providers_carry_the_fields_the_form_renders(client):
     elevenlabs = next(p for p in body["tts"] if p["name"] == "elevenlabs")
     fields = {f["name"]: f for f in elevenlabs["fields"]}
     assert fields["voice_id"]["required"] is False
-    assert fields["voice_id"]["default"] == "21m00Tcm4TlvDq8ikWAM"
+    assert fields["voice_id"]["default"] == DEFAULT_ELEVENLABS_VOICE
     assert fields["model"]["default"] == "eleven_flash_v2_5"
 
 
@@ -101,7 +102,7 @@ def test_missing_required_field_is_422_with_loc(client, sample):
 def test_blank_field_from_a_cleared_form_input_uses_the_default(client, sample):
     sample["tts"]["voice_id"] = ""
     body = client.post("/api/configs", json=sample).json()
-    assert body["tts"]["voice_id"] == "21m00Tcm4TlvDq8ikWAM"
+    assert body["tts"]["voice_id"] == DEFAULT_ELEVENLABS_VOICE
 
 
 def test_unknown_provider_is_422(client, sample):

@@ -11,6 +11,7 @@ from voice_agent.config import (
     parse_config,
 )
 from voice_agent.config.env import missing_credentials
+from voice_agent.config.providers import DEFAULT_ELEVENLABS_VOICE
 from voice_agent.config.store import ConfigNotFoundError, make_config_id, slugify
 
 SAMPLE = Path("configs/sample-agent-20260809-132143.json")
@@ -139,14 +140,14 @@ def test_deepgram_is_a_valid_tts():
 def test_elevenlabs_voice_id_is_optional_and_defaults():
     raw = sample_dict()
     del raw["tts"]["voice_id"]
-    assert parse_config(raw).tts.options["voice_id"] == "21m00Tcm4TlvDq8ikWAM"
+    assert parse_config(raw).tts.options["voice_id"] == DEFAULT_ELEVENLABS_VOICE
 
 
 def test_blank_optional_field_falls_back_to_the_default():
     """A cleared form field arrives as "" and must not reach the provider."""
     raw = sample_dict()
     raw["tts"]["voice_id"] = "   "
-    assert parse_config(raw).tts.options["voice_id"] == "21m00Tcm4TlvDq8ikWAM"
+    assert parse_config(raw).tts.options["voice_id"] == DEFAULT_ELEVENLABS_VOICE
 
 
 def test_blank_number_field_falls_back_to_the_default():
@@ -284,7 +285,7 @@ def test_describe_stages_exposes_fields_for_the_ui():
     tts = {p["name"]: p for p in describe_stages()["tts"]}
     voice = {f["name"]: f for f in tts["elevenlabs"]["fields"]}
     assert voice["voice_id"]["required"] is False
-    assert voice["voice_id"]["default"] == "21m00Tcm4TlvDq8ikWAM"
+    assert voice["voice_id"]["default"] == DEFAULT_ELEVENLABS_VOICE
     assert voice["model"]["choices"] == [
         "eleven_flash_v2_5",
         "eleven_turbo_v2_5",
