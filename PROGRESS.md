@@ -3,6 +3,20 @@
 Working document. Where this project is, where it's going, and the ordered steps
 to get there. Update the checkboxes as steps land.
 
+> **Direction changed on 2026-08-17.** This is no longer a single-user tool. The
+> goal is a multi-tenant platform any company can sign up for, build agents on, and
+> take real phone calls with. Everything below step 5a still describes what is
+> built; the plan from here lives in:
+>
+> - [`docs/PLATFORM-PLAN.md`](docs/PLATFORM-PLAN.md) — capability map, AWS design,
+>   storage maths, unit economics, compliance, phases to revenue
+> - [`docs/ENGINEERING-PLAN.md`](docs/ENGINEERING-PLAN.md) — repo and workflow,
+>   agent version history, the stack in arrival order, security, 14-week sequence
+> - [`docs/adr/`](docs/adr/) — why each decision was made
+>
+> **Steps 5b and 6 below are superseded** by the engineering plan's build sequence.
+> They remain for the record; the work in them is folded into weeks 4–6 there.
+
 ---
 
 ## What we are building
@@ -548,7 +562,11 @@ selection, says so, and reloads the list.
 record captured it as `calls 1, errors 1`; the log page now says in words that the
 answer was not grounded.
 
-## Step 5b — Per-turn latency and transcripts
+## Step 5b — Per-turn latency and transcripts — SUPERSEDED
+
+> Folded into week 6 of `docs/ENGINEERING-PLAN.md` §10, where it lands
+> alongside the multi-tenancy work that shares its plumbing.
+
 
 Everything 5a left out. The overview answers "what did this call cost"; this
 answers "where did the time go, and what was actually said".
@@ -575,7 +593,11 @@ answers "where did the time go, and what was actually said".
 **Done when:** after a call you can see which provider was slow on which turn, and
 read what was said next to it.
 
-## Step 6 — One-command startup and polish
+## Step 6 — One-command startup and polish — SUPERSEDED
+
+> Replaced by the containerisation and CI work in week 1 of the
+> engineering plan.
+
 
 - [ ] Single `make dev` (or docker-compose) bringing up API + worker + UI together
 - [ ] README quickstart

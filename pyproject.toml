@@ -34,6 +34,10 @@ dev = [
     "ruff>=0.16.2",
 ]
 
+[tool.ruff]
+# Vendored third-party skills. Ours to read, not to reformat.
+extend-exclude = [".claude/skills"]
+
 [tool.mypy]
 files = ["src", "tests"]
 strict = true

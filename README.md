@@ -12,6 +12,14 @@ built fresh for every call.
 📖 **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — file-by-file walkthrough, data-flow
 traces, design invariants, and the bugs that shaped them.
 
+**Where this is going.** It currently runs as a single-user tool on one machine. The
+goal is a multi-tenant platform: companies sign up, buy credits, build agents,
+connect a CRM, take real calls, and review every one afterwards.
+
+- [`docs/PLATFORM-PLAN.md`](docs/PLATFORM-PLAN.md) — the product and the path to revenue
+- [`docs/ENGINEERING-PLAN.md`](docs/ENGINEERING-PLAN.md) — how to build it
+- [`docs/adr/`](docs/adr/) — why each decision was made
+
 ```
 ┌──────────┬────────────────────────┬──────────────────┐
 │ Configs  │  Settings              │  Talk            │
