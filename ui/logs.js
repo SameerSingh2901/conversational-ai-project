@@ -80,6 +80,17 @@ function render(record) {
   const tools = record.tools ?? [];
   if (tools.length) {
     $("tools-card").hidden = false;
+    // A tool the model called but that was never registered shows up here as an
+    // error. The answer it then gave came from the model, not from your data.
+    const failed = tools.filter((t) => t.errors > 0);
+    const warn = $("tools-warning");
+    warn.hidden = failed.length === 0;
+    if (failed.length) {
+      const enabled = (record.config?.tools ?? []).length;
+      warn.textContent = enabled
+        ? `${failed.map((t) => t.name).join(", ")} failed during this call — answers that needed it were not grounded.`
+        : `The model tried to call ${failed.map((t) => t.name).join(", ")}, but this config enables no tools. Any answer it gave was ungrounded.`;
+    }
     $("tools-table").querySelector("tbody").replaceChildren(
       ...tools.map((t) =>
         el("tr", {}, [

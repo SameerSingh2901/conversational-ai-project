@@ -297,6 +297,16 @@ input:focus, select:focus, textarea:focus {
   margin: 0;
 }
 
+.tools-warning {
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--danger);
+  background: var(--danger-bg);
+  border: 1px solid var(--danger);
+}
+
 /* --- banner --- */
 .banner {
   border-radius: var(--radius);

@@ -12,6 +12,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from voice_agent.agent import _RecordWriter
 from voice_agent.api.app import create_app
 from voice_agent.calls import CallRecorder, CallStore, record_from_dict
 from voice_agent.calls.models import OUTCOME_COMPLETED, OUTCOME_ERROR
@@ -213,6 +214,53 @@ def test_finish_stamps_timing_and_reason(recorder):
     assert record.ended_at and record.ended_at.endswith("Z")
     assert record.duration_seconds is not None and record.duration_seconds >= 0
     assert record.shutdown_reason == "user hung up"
+
+
+# --- when the record gets written -----------------------------------------------
+
+
+@dataclass
+class CloseEvent:
+    reason: str
+
+
+def test_session_close_writes_the_record(tmp_path: Path, recorder):
+    """The browser is polling from the moment it disconnects, so close is the
+    trigger that matters. Job shutdown alone landed ~24s late in practice."""
+    store = CallStore(tmp_path)
+    writer = _RecordWriter(recorder, store)
+    writer.on_session_close(CloseEvent("participant_disconnected"))
+    assert store.load(CALL_ID).shutdown_reason == "participant_disconnected"
+
+
+async def test_job_shutdown_does_not_write_twice(tmp_path: Path, recorder):
+    store = CallStore(tmp_path)
+    writer = _RecordWriter(recorder, store)
+    writer.on_session_close(CloseEvent("participant_disconnected"))
+    await writer.on_job_shutdown("parent process shutdown")
+
+    # The close reason survives; the later shutdown was a no-op.
+    assert store.load(CALL_ID).shutdown_reason == "participant_disconnected"
+
+
+async def test_job_shutdown_is_the_fallback_when_close_never_fires(
+    tmp_path: Path, recorder
+):
+    """A crashed or drained session may never emit close."""
+    store = CallStore(tmp_path)
+    writer = _RecordWriter(recorder, store)
+    await writer.on_job_shutdown("worker drained")
+    assert store.load(CALL_ID).shutdown_reason == "worker drained"
+
+
+def test_a_failed_write_does_not_raise(tmp_path: Path, recorder):
+    """A broken write must not turn a completed call into a crashed job."""
+
+    class Broken(CallStore):
+        def save(self, record):
+            raise OSError("disk full")
+
+    _RecordWriter(recorder, Broken(tmp_path)).on_session_close(CloseEvent("x"))
 
 
 # --- store ----------------------------------------------------------------------

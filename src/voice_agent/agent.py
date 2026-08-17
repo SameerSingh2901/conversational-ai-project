@@ -21,7 +21,6 @@ load_dotenv()
 import json
 import logging
 import os
-from collections.abc import Callable, Coroutine
 from typing import Any
 
 from livekit import agents
@@ -111,20 +110,36 @@ def config_from_metadata(metadata: str | None) -> AgentConfig | None:
     return parse_config(raw)
 
 
-def _write_record(recorder: CallRecorder) -> Callable[[str], Coroutine[Any, Any, None]]:
-    """Persist the call record when LiveKit shuts the job down.
+class _RecordWriter:
+    """Writes the call record exactly once, as soon as the call is genuinely over.
 
-    A shutdown callback rather than a `finally` in the handler: `session()` returns
-    as soon as the session has started, so a `finally` there would fire while the
-    call was still in progress. This runs when the call is actually over — normal
-    hang-up, worker draining, or crash — which is also why writing here is safe:
-    there is no audio left to stall.
+    Two triggers, because neither alone is both prompt and reliable:
+
+    * **session close** fires the moment the caller disconnects. This is the one
+      that matters to the browser, which is polling for the record.
+    * **job shutdown** is the safety net, for a session that never closes cleanly —
+      a crash, or a worker being drained. A no-op when the session already wrote.
+
+    Job shutdown alone was measurably too late. LiveKit uploads its session report
+    to the cloud before shutting the job down, so the record landed roughly 24
+    seconds after hang-up — past the point the UI had given up waiting.
+
+    Writing from the synchronous close handler is safe: the call is over, there is
+    no audio left to stall, and the file is a couple of kilobytes.
     """
 
-    async def write(reason: str = "") -> None:
+    def __init__(self, recorder: CallRecorder, store: CallStore) -> None:
+        self._recorder = recorder
+        self._store = store
+        self._written = False
+
+    def _write(self, reason: str | None) -> None:
+        if self._written:
+            return
+        self._written = True
         try:
-            record = recorder.finish(shutdown_reason=reason or None)
-            path = _call_store().save(record)
+            record = self._recorder.finish(shutdown_reason=reason or None)
+            path = self._store.save(record)
             logger.info(
                 "call record written: %s (%.1fs, %d turns, %d tokens)",
                 path,
@@ -136,7 +151,11 @@ def _write_record(recorder: CallRecorder) -> Callable[[str], Coroutine[Any, Any,
             # A failed write must not turn a completed call into a crashed job.
             logger.exception("could not write the call record")
 
-    return write
+    def on_session_close(self, event: Any) -> None:
+        self._write(str(getattr(event, "reason", "") or "session closed"))
+
+    async def on_job_shutdown(self, reason: str = "") -> None:
+        self._write(reason or "job shutdown")
 
 
 def room_metadata(ctx: JobContext) -> str | None:
@@ -182,7 +201,9 @@ async def session(ctx: JobContext) -> None:
     # identifier to thread through.
     recorder = CallRecorder(call_id=ctx.room.name, config=config)
     recorder.attach(agent_session)
-    ctx.add_shutdown_callback(_write_record(recorder))
+    writer = _RecordWriter(recorder, _call_store())
+    agent_session.on("close", writer.on_session_close)
+    ctx.add_shutdown_callback(writer.on_job_shutdown)
 
     await agent_session.start(room=ctx.room, agent=ConfiguredAgent(config))
 
