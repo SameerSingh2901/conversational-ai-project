@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Call log — Voice Agent</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>Call log</h1>
+    <span class="topbar-sub" id="call-id"></span>
+  </header>
+
+  <main class="log-page">
+    <p class="log-status" id="log-status">Loading…</p>
+
+    <section class="log-body" id="log-body" hidden>
+      <div class="card">
+        <h3>Overview</h3>
+        <dl class="log-grid" id="overview"></dl>
+      </div>
+
+      <div class="card">
+        <h3>Usage</h3>
+        <dl class="log-grid" id="usage"></dl>
+        <p class="hint">
+          Tokens, characters and audio seconds are what the providers invoice for.
+        </p>
+      </div>
+
+      <div class="card" id="tools-card" hidden>
+        <h3>Tools</h3>
+        <div class="tablewrap">
+          <table id="tools-table">
+            <thead><tr><th>Tool</th><th>Calls</th><th>Errors</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Config used</h3>
+        <p class="hint">
+          A snapshot taken when the call started. The saved config may have been
+          edited since; this is what actually ran.
+        </p>
+        <pre id="config-json"></pre>
+      </div>
+    </section>
+  </main>
+
+  <script src="/logs.js"></script>
+</body>
+</html>

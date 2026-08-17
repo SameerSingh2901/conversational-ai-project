@@ -18,6 +18,7 @@ const state = {
   selectedId: null,
   room: null, // live LiveKit Room while a call is up
   muted: false,
+  callId: null, // room name of the call in flight, used to fetch its log after
 };
 
 /* ---------- helpers ---------- */
@@ -398,6 +399,67 @@ function attachTranscription(room) {
   });
 }
 
+/* ---------- after-call artifacts ---------- */
+
+/* The worker writes the call record on shutdown, which happens a moment after the
+ * browser disconnects — so the record does not exist yet when we ask for it.
+ * Poll until it lands rather than guessing at a fixed delay. */
+const LOG_POLL_INTERVAL_MS = 700;
+const LOG_POLL_TIMEOUT_MS = 20000;
+
+function resetArtifacts() {
+  $("artifacts").hidden = true;
+  $("artifacts-pending").hidden = false;
+  $("artifacts-ready").hidden = true;
+  $("artifacts-failed").hidden = true;
+}
+
+function fmtDuration(seconds) {
+  if (seconds === null || seconds === undefined) return "—";
+  const s = Math.round(seconds);
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`;
+}
+
+function renderArtifacts(record) {
+  const stats = [
+    ["duration", fmtDuration(record.duration_seconds)],
+    ["turns", `${record.user_turns}/${record.agent_turns}`],
+    ["tokens", (record.totals?.tokens?.total_tokens ?? 0).toLocaleString()],
+    ["tool calls", (record.tools ?? []).reduce((n, t) => n + t.calls, 0)],
+  ];
+  $("artifacts-stats").replaceChildren(
+    ...stats.map(([label, value]) =>
+      el("div", {}, [el("dt", { text: label }), el("dd", { text: String(value) })]),
+    ),
+  );
+  // A separate page, opened in a new tab — the call panel stays where it is.
+  $("view-logs").href = `/logs.html?call=${encodeURIComponent(record.call_id)}`;
+  $("artifacts-pending").hidden = true;
+  $("artifacts-ready").hidden = false;
+}
+
+async function waitForCallRecord(callId) {
+  $("artifacts").hidden = false;
+  $("artifacts-pending").hidden = false;
+  $("artifacts-ready").hidden = true;
+  $("artifacts-failed").hidden = true;
+
+  const deadline = Date.now() + LOG_POLL_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const { ok, body } = await api(`/api/calls/${encodeURIComponent(callId)}`);
+    if (ok && body) {
+      renderArtifacts(body);
+      return;
+    }
+    await new Promise((r) => setTimeout(r, LOG_POLL_INTERVAL_MS));
+  }
+
+  $("artifacts-pending").hidden = true;
+  $("artifacts-failed").hidden = false;
+  $("artifacts-failed").textContent =
+    "No log was written for this call. Check the worker output.";
+}
+
 async function startCall() {
   if (!state.selectedId) {
     showErrors([{ loc: [], msg: "save this config first, then hit Run" }]);
@@ -408,6 +470,7 @@ async function startCall() {
   $("transcript").replaceChildren();
   $("transcript-empty").hidden = false;
   $("call-note").textContent = "";
+  resetArtifacts();
   setCallStatus("connecting…");
 
   const { ok, status, body } = await api("/api/sessions", {
@@ -423,6 +486,7 @@ async function startCall() {
     return;
   }
 
+  state.callId = body.room;
   const room = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
   state.room = room;
 
@@ -466,6 +530,12 @@ async function endCall(reason) {
   refreshRunButton();
   if (reason === "disconnected") {
     setCallStatus("ended");
+  }
+  // Only a call that actually connected leaves a record behind.
+  if (room && state.callId) {
+    const callId = state.callId;
+    state.callId = null;
+    waitForCallRecord(callId);
   }
 }
 

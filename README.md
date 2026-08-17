@@ -124,9 +124,11 @@ src/voice_agent/
 │   └── knowledge_base.py   retrieval over knowledge/, via Pinecone
 ├── rag/             document loading, chunking, and the vector store
 ├── agent.py         the LiveKit worker; builds a pipeline per session
-└── api/             FastAPI: /api/providers, /api/configs, /api/sessions
+├── calls/           call records: what ran, how long, what it cost
+└── api/             FastAPI: /api/providers, /api/configs, /api/sessions, /api/calls
 ui/                  plain HTML/CSS/JS, served by FastAPI — no build step
 configs/             saved agent profiles
+call_logs/           one JSON record per call (gitignored — runtime data)
 knowledge/           source documents for the knowledge_base tool
 docs/ARCHITECTURE.md file-by-file walkthrough
 scripts/             make_sample_pdf.py — regenerates the demo document
@@ -270,6 +272,31 @@ async def check_order_status(context: RunContext[Any], order_id: str) -> str:
 Import it in `tools/__init__.py` so registration happens, then name it in a
 config's `tools` list. The docstring is what the LLM sees when deciding whether to
 call it, so write it for the model.
+
+## Call logs
+
+Every call leaves a record in `call_logs/<room-name>.json`: when it ran, the config
+that produced it, how many turns, and what it cost in tokens, TTS characters and
+STT audio seconds.
+
+When a call ends the UI shows **Generating logs…**, polls until the worker has
+written the record, then offers a **View logs** button that opens the log on its own
+page — `/logs.html?call=<id>`, so every call log is a URL you can share.
+
+The room name is the call id. It is unique per call and the browser already has it
+from `POST /api/sessions`, so no second identifier has to be threaded through.
+
+- The worker writes on **shutdown**, not in the session handler — `session()` returns
+  as soon as the session starts, so a `finally` there would fire mid-call.
+- The **config is snapshotted**, not referenced by id. The saved config may be edited
+  or deleted afterwards; the record has to keep describing what actually ran.
+- Every handler is defensive. A malformed metric loses a number; it must never end a
+  live call.
+- `calls/redaction.py` is the single seam every piece of free text will pass through
+  once transcripts are stored. It is a no-op today and nothing calls it yet.
+
+Per-turn latency — end-of-utterance delay, LLM time-to-first-token, TTS
+time-to-first-byte, correlated by `speech_id` — is the next increment.
 
 ## Design decisions
 

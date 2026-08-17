@@ -457,7 +457,50 @@ exactly like a retrieval failure. A test now pins both spellings.
 registered, and the config fails with "unknown tool" even though the code exists
 and its own tests pass. The import in `tools/__init__.py` is load-bearing.
 
-## Step 5 — Call logs, transcripts, and latency
+## Step 5a — Call overview logs — DONE
+
+The first slice: when a call ran, which config produced it, and what it cost.
+
+- [x] `calls/models.py` — `CallRecord`, `CallTotals`, `TokenUsage`, `ToolUse`, plus a
+      forgiving `record_from_dict()` so a record from a newer version stays listable
+- [x] `calls/recorder.py` — subscribes to `metrics_collected`,
+      `conversation_item_added`, `function_tools_executed` and `error`. Every handler
+      is defensive: a malformed metric loses a number, never a call
+- [x] `calls/store.py` — `call_logs/<room-name>.json`, mirroring `ConfigStore`
+- [x] `calls/redaction.py` — the single seam free text will pass through. No-op, and
+      nothing calls it yet: this increment stores no caller speech
+- [x] `agent.py` — writes on `ctx.add_shutdown_callback`, **not** a `finally` in the
+      handler, which would fire while the call was still running
+- [x] `GET /api/calls`, `GET /api/calls/{id}` — read-only by design
+- [x] UI: an "After the call" section between the controls and the transcript,
+      showing *Generating logs…* while polling, then duration/turns/tokens and a
+      **View logs** button that opens `/logs.html?call=<id>` in a new tab
+- [x] `ui/logs.html` + `logs.js` — the log on its own page, so it is linkable
+- [x] `tests/test_calls.py` — 23 tests, no network
+- [x] `call_logs/` gitignored — runtime data that will hold caller speech
+
+**Verified:** 146 tests, `make check` green. A simulated call with a tool round trip
+records both LLM requests, 3,593 tokens (1,024 cached), 212 TTS characters, 4.8 s of
+STT audio and one `knowledge_base` call.
+
+### Decisions
+
+**The room name is the call id.** Unique per call, and the browser already has it
+from `POST /api/sessions`, so no second identifier has to be threaded through.
+
+**The config is snapshotted into the record**, not referenced by id — the saved
+config may be edited or deleted afterwards, and a record that pointed at it would
+silently start describing something else.
+
+**The API can only read.** No endpoint creates or edits a record. A call log the
+application can rewrite is not worth much as a record of what happened.
+
+**The browser polls.** The worker writes on shutdown, a moment after the browser
+disconnects, so the record does not exist when the UI first asks. It polls for up to
+20 s rather than guessing at a fixed delay — which is why `GET /api/calls/{id}`
+returning 404 has to mean "not yet".
+
+## Step 5b — Per-turn latency and transcripts
 
 - [ ] `logging.py`: structured JSON logs to stdout, configured once per process
 - [ ] Call record: `call_id`, full config snapshot, start/end, per-turn transcript

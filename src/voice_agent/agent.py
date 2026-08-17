@@ -21,11 +21,13 @@ load_dotenv()
 import json
 import logging
 import os
+from collections.abc import Callable, Coroutine
 from typing import Any
 
 from livekit import agents
 from livekit.agents import Agent, AgentServer, AgentSession, JobContext
 
+from voice_agent.calls import CallRecorder, CallStore
 from voice_agent.config.env import missing_credentials
 from voice_agent.config.errors import ConfigValidationError
 from voice_agent.config.schema import AgentConfig, parse_config
@@ -35,6 +37,7 @@ from voice_agent.tools.registry import resolve_tools
 
 CONFIG_ENV = "VOICE_AGENT_CONFIG"
 CONFIG_DIR_ENV = "VOICE_AGENT_CONFIG_DIR"
+CALL_LOG_DIR_ENV = "VOICE_AGENT_CALL_LOG_DIR"
 
 logger = logging.getLogger("voice-agent")
 
@@ -53,6 +56,10 @@ class ConfiguredAgent(Agent):
 
 def _store() -> ConfigStore:
     return ConfigStore(os.environ.get(CONFIG_DIR_ENV, "configs"))
+
+
+def _call_store() -> CallStore:
+    return CallStore(os.environ.get(CALL_LOG_DIR_ENV, "call_logs"))
 
 
 def resolve_config() -> AgentConfig:
@@ -104,6 +111,34 @@ def config_from_metadata(metadata: str | None) -> AgentConfig | None:
     return parse_config(raw)
 
 
+def _write_record(recorder: CallRecorder) -> Callable[[str], Coroutine[Any, Any, None]]:
+    """Persist the call record when LiveKit shuts the job down.
+
+    A shutdown callback rather than a `finally` in the handler: `session()` returns
+    as soon as the session has started, so a `finally` there would fire while the
+    call was still in progress. This runs when the call is actually over — normal
+    hang-up, worker draining, or crash — which is also why writing here is safe:
+    there is no audio left to stall.
+    """
+
+    async def write(reason: str = "") -> None:
+        try:
+            record = recorder.finish(shutdown_reason=reason or None)
+            path = _call_store().save(record)
+            logger.info(
+                "call record written: %s (%.1fs, %d turns, %d tokens)",
+                path,
+                record.duration_seconds or 0.0,
+                record.user_turns,
+                record.totals.tokens.total_tokens,
+            )
+        except Exception:
+            # A failed write must not turn a completed call into a crashed job.
+            logger.exception("could not write the call record")
+
+    return write
+
+
 def room_metadata(ctx: JobContext) -> str | None:
     """Where to read the room's metadata from, inside a job entrypoint.
 
@@ -141,6 +176,14 @@ async def session(ctx: JobContext) -> None:
         tts=build_tts(config.tts),
         vad=build_vad(config.vad),
     )
+
+    # The room name is the call id: unique per call, and the browser already has
+    # it from POST /api/sessions, so the UI can ask for the record with no second
+    # identifier to thread through.
+    recorder = CallRecorder(call_id=ctx.room.name, config=config)
+    recorder.attach(agent_session)
+    ctx.add_shutdown_callback(_write_record(recorder))
+
     await agent_session.start(room=ctx.room, agent=ConfiguredAgent(config))
 
     if config.prompt.greeting.strip():

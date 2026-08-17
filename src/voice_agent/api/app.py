@@ -18,7 +18,8 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from voice_agent.api.routes import configs, providers, sessions
+from voice_agent.api.routes import calls, configs, providers, sessions
+from voice_agent.calls.store import CallStore
 from voice_agent.config.errors import ConfigValidationError
 from voice_agent.config.store import ConfigStore
 
@@ -39,12 +40,17 @@ def _load_dotenv() -> None:
 def create_app(
     config_dir: Path | str | None = None,
     ui_dir: Path | str | None = None,
+    call_log_dir: Path | str | None = None,
 ) -> FastAPI:
     _load_dotenv()
 
     app = FastAPI(title="Voice Agent", version="0.1.0")
     app.state.store = ConfigStore(
         config_dir or os.environ.get("VOICE_AGENT_CONFIG_DIR", "configs")
+    )
+    # Written by the worker, read here. Same machine for now — see calls/store.py.
+    app.state.calls = CallStore(
+        call_log_dir or os.environ.get("VOICE_AGENT_CALL_LOG_DIR", "call_logs")
     )
 
     @app.exception_handler(ConfigValidationError)
@@ -78,6 +84,7 @@ def create_app(
     app.include_router(providers.router, prefix="/api")
     app.include_router(configs.router, prefix="/api")
     app.include_router(sessions.router, prefix="/api")
+    app.include_router(calls.router, prefix="/api")
 
     # Mounted last so /api/* wins. html=True serves index.html at "/".
     ui_setting = ui_dir or os.environ.get("VOICE_AGENT_UI_DIR") or DEFAULT_UI_DIR

@@ -494,10 +494,17 @@ and ElevenLabs hides its 401 behind "no audio frames were pushed".
 
 ## 10. Not built yet
 
-- **Call logs and latency.** Nothing about a call is persisted. The intended shape
-  is per-turn metrics from LiveKit's `MetricsCollectedEvent` — end-of-utterance
-  delay, LLM time-to-first-token, TTS time-to-first-byte. Per-turn is what tells
-  you *which* provider is slow.
+- **Per-turn latency.** Call *overviews* are now recorded (`calls/`) — timing,
+  config snapshot, token and character usage, tool tallies. What is still missing is
+  the per-turn breakdown: correlating `EOUMetrics`, `LLMMetrics` and `TTSMetrics` by
+  their shared `speech_id` into end-of-utterance delay, time-to-first-token and
+  time-to-first-byte. Per-turn is what tells you *which* provider is slow.
+- **Stored transcripts.** `ConversationItemAddedEvent` carries them; nothing is
+  persisted yet. `calls/redaction.py` exists as the seam for when they are, because
+  a stored transcript of a real caller is personal data.
+- **Tool-level detail.** `FunctionToolsExecutedEvent` has no duration, and LiveKit
+  never sees which passages retrieval returned. Both need the tool to report through
+  `RunContext.userdata`.
 - **Retrieval latency is unaddressed.** A `knowledge_base` lookup measures ~1.2 s
   from India to Pinecone's `us-east-1`, on top of LLM and TTS time. Options: a
   nearer region, caching frequent questions, or having the agent fill the gap

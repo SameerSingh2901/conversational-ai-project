@@ -83,6 +83,26 @@
         </div>
         <p class="call-note" id="call-note"></p>
 
+        <!-- Call artifacts. Logs today; recordings and evaluations later.
+             Sits between the controls and the transcript so it is the first
+             thing you see once a call ends. -->
+        <section class="artifacts" id="artifacts" hidden>
+          <h4 class="artifacts-title">After the call</h4>
+
+          <p class="artifacts-pending" id="artifacts-pending">
+            <span class="spinner" aria-hidden="true"></span>
+            Generating logs…
+          </p>
+
+          <div class="artifacts-ready" id="artifacts-ready" hidden>
+            <dl class="artifacts-stats" id="artifacts-stats"></dl>
+            <a class="btn btn-primary" id="view-logs" href="#"
+               target="_blank" rel="noopener">View logs</a>
+          </div>
+
+          <p class="artifacts-failed" id="artifacts-failed" hidden></p>
+        </section>
+
         <p class="transcript-empty" id="transcript-empty">
           The transcript appears here once the call starts.
         </p>

@@ -14,6 +14,10 @@ dist/
 .coverage.*
 htmlcov/
 
+# Call records are runtime data, and they will hold caller speech once
+# transcripts land. Never commit them.
+call_logs/
+
 .env
 .env.*
 !.env.example
